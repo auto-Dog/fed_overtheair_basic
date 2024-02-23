@@ -73,7 +73,7 @@ if __name__ == '__main__':
     print_every = 2
     val_loss_pre, counter = 0, 0
 
-    for epoch in tqdm(range(args.epochs)):
+    for epoch in tqdm(range(args.epochs),ascii=True):
         local_weights, local_losses = [], []
         # print(f'\n | Global Training Round : {epoch+1} |\n')
 

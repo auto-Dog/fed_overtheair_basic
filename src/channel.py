@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import copy
 
-def generate_channel_gain(num_users):
+def generate_channel_gain(num_users,device):
     # Rayleigh parameters
     average_power_loss = 1e-3  # Average power loss (10^(-3))
     num_samples = num_users  # Number of fading samples to generate
@@ -14,6 +14,7 @@ def generate_channel_gain(num_users):
 
     # Generate independent Rayleigh fading samples
     rayleigh_samples = sigma * np.random.randn(num_samples) + 1j * sigma * np.random.randn(num_samples)
+    rayleigh_samples = torch.from_numpy(rayleigh_samples).to(device)
     return rayleigh_samples
 
 def generate_channel_noise(signal_tensor:torch.Tensor,device,snr_db=-30):
@@ -22,18 +23,18 @@ def generate_channel_noise(signal_tensor:torch.Tensor,device,snr_db=-30):
     noise = sigma * np.random.randn(num_samples)
     noise = torch.from_numpy(noise).to(device)
     noise = noise.reshape_as(signal_tensor)
+    return noise
 
 def channel_process(w,args):
     device = 'cuda' if args.gpu else 'cpu'
-    rayleigh_coefficient = generate_channel_gain(len(w))
+    rayleigh_coefficient = generate_channel_gain(len(w),device)
     # Put your precoding here:
     precode = 1/rayleigh_coefficient
     # Put your postcoding here:
     postcode = {}
-    for key in w_avg.keys():
-        postcode[key] = torch.ones_like(w[0][key])
+    for key in w[0][key]:
+        postcode[key] = torch.ones_like(w[0][key]).to(device)
     
-    rayleigh_coefficient = torch.Tensor().to(device)
     w_avg = copy.deepcopy(w[0])
     for key in w_avg.keys():
         for i in range(1, len(w)):
