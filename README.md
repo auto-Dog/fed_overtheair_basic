@@ -21,12 +21,12 @@ Install all the packages from requirments.txt
 ## Running the experiments
 The baseline experiment trains the model in the conventional way.
 
-* To run the baseline experiment with MNIST on MLP using CPU:
+* To run the baseline experiment with MNIST on GPU (eg: if gpu:0 is available):
 ```
-python src/baseline_main.py --model=mlp --dataset=mnist --epochs=10 --channel
+python src/baseline_main.py --dataset=mnist --gpu=0 --epochs=10
 ```
-* Or to run it on GPU (eg: if gpu:0 is available):
+* To run the experiment:
 ```
-python src/baseline_main.py --model=mlp --dataset=mnist --gpu=0 --epochs=10 --channel
+python src/federated_main.py --dataset=mnist --gpu=0 --epochs=10 --num_users 4 --frac 1.0 --local_bs 64 --channel
 ```
 -----
