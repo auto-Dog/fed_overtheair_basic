@@ -39,7 +39,8 @@ def channel_process(w,args):
     for key in w_avg.keys():
         for i in range(1, len(w)):
             # yi = hi*gi*x + n
-            w_avg[key] += rayleigh_coefficient[i] * precode[i] * w[i][key] + generate_channel_noise(w[i][key],device,args.snr_db)
+            y_complex = rayleigh_coefficient[i] * precode[i] * w[i][key] + generate_channel_noise(w[i][key],device,args.snr_db)
+            w_avg[key] += torch.real(y_complex)
         # y = p*sum(yi)
         w_avg[key] = torch.div(w_avg[key], len(w))
         w_avg[key] = w_avg[key] * postcode[key]
