@@ -33,6 +33,7 @@ if __name__ == '__main__':
     if args.gpu:
         torch.cuda.set_device('cuda:'+str(args.gpu))
     device = 'cuda' if args.gpu else 'cpu'
+    print('Using device:',device)
 
     # load dataset and user groups
     train_dataset, test_dataset, user_groups = get_dataset(args)
@@ -99,6 +100,8 @@ if __name__ == '__main__':
             loss_avg = sum(local_losses) / len(local_losses)
         else:
             global_weights = channel_process(local_weights,args)
+            # update global weights
+            global_model.load_state_dict(global_weights)
             loss_avg = sum(local_losses) / len(local_losses)
 
         train_loss.append(loss_avg)
