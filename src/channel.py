@@ -32,7 +32,7 @@ def channel_process(w,args):
     precode = 1/rayleigh_coefficient
     # Put your postcoding here:
     postcode = {}
-    for key in w[0][key]:
+    for key in w[0]:
         postcode[key] = torch.ones_like(w[0][key]).to(device)
     
     w_avg = copy.deepcopy(w[0])
