@@ -20,7 +20,9 @@ class DatasetSplit(Dataset):
 
     def __getitem__(self, item):
         image, label = self.dataset[self.idxs[item]]
-        return torch.tensor(image), torch.tensor(label)
+        # return torch.tensor(image), torch.tensor(label)
+        return image, label # CIFAR等数据集dataset已经包含了totensor操作
+
 
 
 class LocalUpdate(object):
