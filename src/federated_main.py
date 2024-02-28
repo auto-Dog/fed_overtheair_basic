@@ -17,7 +17,7 @@ from options import args_parser
 from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
-from channel import channel_process
+from channel import wireless_channel
 
 
 if __name__ == '__main__':
@@ -80,8 +80,7 @@ if __name__ == '__main__':
 
         global_model.train()
         m = max(int(args.frac * args.num_users), 1)
-        idxs_users = np.random.choice(range(args.num_users), m, replace=False)
-
+        idxs_users = np.random.choice(range(args.num_users), m, replace=False)        
         for idx in idxs_users:
             local_model = LocalUpdate(args=args, dataset=train_dataset,
                                       idxs=user_groups[idx], logger=logger)
@@ -99,7 +98,8 @@ if __name__ == '__main__':
 
             loss_avg = sum(local_losses) / len(local_losses)
         else:
-            global_weights = channel_process(local_weights,args)
+            channel_process = wireless_channel(args)
+            global_weights = channel_process.channel_process(local_weights)
             # update global weights
             global_model.load_state_dict(global_weights)
             loss_avg = sum(local_losses) / len(local_losses)

@@ -62,6 +62,8 @@ def args_parser():
     parser.add_argument('--seed', type=int, default=1, help='random seed')
 
     parser.add_argument('--channel', action='store_true', help='Consider channel environment')
+    parser.add_argument('--num_tx', type=float, default=1, help='Number of tx antennas at each client')
+    parser.add_argument('--num_rx', type=float, default=4, help='Number of rx antennas at center AP')
     parser.add_argument('--snr_db', type=float, default=-30, help='Channel SNR')
     args = parser.parse_args()
     return args
