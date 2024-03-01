@@ -17,7 +17,7 @@ class wireless_channel():
         Return Rayleight distributed channel gain coefficient, dimension = num_tx x num_rx
         '''
         # Rayleigh parameters
-        average_power_loss = 1e-3  # Average power loss (10^(-3))
+        average_power_loss = 1e-2  # Average power loss (10^(-3))
 
         # Calculate the Rayleigh scale parameter (sigma)
         # The scale parameter is related to the average power loss as follows:
@@ -68,19 +68,18 @@ class wireless_channel():
                 postcode = torch.from_numpy(postcode_np).to(device).flatten()
             # postcode = torch.ones(self.num_rx).to(device)
 
-            for key in w_avg.keys():
-                for i in range(len(w)):  # Each cients' SIMO channel
-                    # Put your precoding here:
-                    if self.args.oac_method == 'none':
-                        precode = torch.ones(self.num_tx).to(device)
-                    elif self.args.oac_method == 'naive':
-                        precode = rayleigh_coefficient[i,0].view(-1)
-                    elif self.args.oac_method == 'mimo_oac':
-                        precode = (h_coefficient[:,i].reshape(-1,1).T.conjugate() @ postcode_np.conjugate()) * \
-                                1/(postcode_np.T @ h_coefficient[:,i].reshape(-1,1) @ h_coefficient[:,i].reshape(-1,1).T.conjugate() @ postcode_np.conjugate())
-                        precode = torch.from_numpy(precode.conjugate()).to(device)
-                    # yij = hij*gij*x + ni, yi = real(Σ pj*yij)
-
+            for i in range(len(w)):  # Each cients' SIMO channel
+                # Put your precoding here:
+                if self.args.oac_method == 'none':
+                    precode = torch.ones(self.num_tx).to(device).flatten()
+                elif self.args.oac_method == 'naive':
+                    precode = 1/rayleigh_coefficient[i,0].view(-1)
+                elif self.args.oac_method == 'mimo_oac':
+                    precode = (h_coefficient[:,i].reshape(-1,1).T.conjugate() @ postcode_np.conjugate()) * \
+                            1/(postcode_np.T @ h_coefficient[:,i].reshape(-1,1) @ h_coefficient[:,i].reshape(-1,1).T.conjugate() @ postcode_np.conjugate())
+                    precode = torch.from_numpy(precode.conjugate()).to(device).flatten()
+                # yij = hij*gij*x + ni, yi = real(Σ pj*yij)
+                for key in w_avg.keys():
                     # attenna 0
                     y_complex = rayleigh_coefficient[i,0] * precode[0] * w[i][key] + self.generate_channel_noise(w[i][key],device,self.args.snr_db)
                     y_post_complex = postcode[0] * y_complex
@@ -98,7 +97,8 @@ class wireless_channel():
                         w_avg[key] = torch.abs(y_post_complex)*sign_mask
                     else:
                         w_avg[key] += torch.abs(y_post_complex)*sign_mask
-                w_avg[key] = torch.div(w_avg[key], len(w))
+                    if i==len(w)-1:
+                        w_avg[key] = torch.div(w_avg[key], len(w))
 
         return w_avg
 
@@ -111,10 +111,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # federated arguments (Notation for the arguments followed from paper)
     parser.add_argument('--num_tx', type=int, default=1)
-    parser.add_argument('--num_rx', type=int, default=4)
+    parser.add_argument('--num_rx', type=int, default=10)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--snr_db', type=int, default=-30)
-    parser.add_argument('--oac_method', type=str, default='none')
+    parser.add_argument('--oac_method', type=str, default='mimo_oac')
     args = parser.parse_args()
 
     def eval_model_mse(w1,w2):
@@ -127,9 +127,10 @@ if __name__ == '__main__':
     # 简单测试
     channel = wireless_channel(args)
     model = {'layer1':torch.Tensor([1,2,-1]).to('cpu')}
-    model_list = [model,model,model,model]
+    model_list = [model]*20
     print(channel.channel_process(model_list))
     print('Model mse:',eval_model_mse(model,channel.channel_process(model_list)))
+
 
     # result_list = []
     # for iter in tqdm(range(10)):
