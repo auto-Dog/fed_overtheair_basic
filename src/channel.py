@@ -45,44 +45,79 @@ class wireless_channel():
         w: list of all clients' weights
         '''
         device = 'cuda' if self.args.gpu else 'cpu'
-        if self.num_tx == 1: 
+        if self.num_tx == 1:    # Support K x SIMO currently
             rayleigh_coefficient = self.generate_channel_gain(len(w),self.num_rx,device)       
             w_avg = copy.deepcopy(w[0])
+            if self.args.oac_method == 'none':
+                postcode = torch.ones(self.num_rx).to(device)
+            elif self.args.oac_method == 'naive':
+                postcode = torch.ones(self.num_rx).to(device)
+            elif self.args.oac_method == 'mimo_oac':
+                # Put your postcoding here:
+                h_coefficient = rayleigh_coefficient.cpu().numpy().T
+                csi_G = np.zeros((self.num_rx,self.num_rx),dtype=np.complex64)
+                for i in range(len(w)):
+                    ui,sigmai,_ = np.linalg.svd(h_coefficient[:,i].reshape(-1,1))
+                    csi_G += np.min(sigmai*sigmai)*np.matmul(ui,ui.T.conjugate())
+                F_mat,_,_ = np.linalg.svd(csi_G)
+                F_mat = F_mat[:,0].conjugate()
+                eta = max([np.abs(1/(F_mat.T @ h_coefficient[:,i].reshape(-1,1) @ h_coefficient[:,i].reshape(-1,1).T.conjugate() @ F_mat.conjugate())) for i in range(len(w))])/0.25
+                postcode_np = np.sqrt(eta)*F_mat
+                postcode = torch.from_numpy(postcode_np).to(device).flatten()
+            # postcode = torch.ones(self.num_rx).to(device)
+
             for key in w_avg.keys():
                 for i in range(len(w)):  # Each cients' SIMO channel
                     # Put your precoding here:
-                    precode = 1/rayleigh_coefficient    # Only can Use precode[i,0] since each client have 1 attenna
-                    # Put your postcoding here:
-                    postcode = torch.ones(self.num_rx).to(device)                
+                    if self.args.oac_method == 'none':
+                        precode = torch.ones(self.num_tx).to(device)/3
+                    elif self.args.oac_method == 'naive':
+                        precode = rayleigh_coefficient[i,0].view(-1)/3
+                        print(precode)  # debug
+                    elif self.args.oac_method == 'mimo_oac':
+                        precode = (h_coefficient[:,i].reshape(-1,1).T.conjugate() @ postcode_np.conjugate()) * \
+                                1/(postcode_np.T @ h_coefficient[:,i].reshape(-1,1) @ h_coefficient[:,i].reshape(-1,1).T.conjugate() @ postcode_np.conjugate())
+                        precode = torch.from_numpy(precode.conjugate()).to(device)
                     # yij = hij*gij*x + ni, yi = real(Σ pj*yij)
 
                     # attenna 0
-                    y_complex = rayleigh_coefficient[i,0] * precode[i,0] * w[i][key] + self.generate_channel_noise(w[i][key],device,self.args.snr_db)
+                    y_complex = rayleigh_coefficient[i,0] * precode[0] * w[i][key] + self.generate_channel_noise(w[i][key],device,self.args.snr_db)
                     y_post_complex = postcode[0] * y_complex
                     # attenna 1-X
                     for rx in range(1,self.num_rx):
-                        y_complex = rayleigh_coefficient[i,rx] * precode[i,0] * w[i][key] + self.generate_channel_noise(w[i][key],device,self.args.snr_db)
+                        y_complex = rayleigh_coefficient[i,rx] * precode[0] * w[i][key] + self.generate_channel_noise(w[i][key],device,self.args.snr_db)
                         # 全部用precode[i,0]需要改进
                         y_post_complex += postcode[rx] * y_complex
                     if i==0:
                         w_avg[key] = torch.real(y_post_complex)
                     else:
                         w_avg[key] += torch.real(y_post_complex)
-                w_avg[key] = torch.div(w_avg[key], len(w)*self.num_rx)
+                # w_avg[key] = torch.div(w_avg[key], len(w))
 
         return w_avg
 
 if __name__ == '__main__':
     import argparse
+    import torch.nn as nn
     parser = argparse.ArgumentParser()
     # federated arguments (Notation for the arguments followed from paper)
     parser.add_argument('--num_tx', type=int, default=1)
-    parser.add_argument('--num_rx', type=int, default=1)
-    parser.add_argument('--gpu', type=int, default=1)
+    parser.add_argument('--num_rx', type=int, default=4)
+    parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--snr_db', type=int, default=-30)
+    parser.add_argument('--oac_method', type=str, default='none')
     args = parser.parse_args()
 
+    def eval_model_mse(w1,w2):
+        mseloss = nn.MSELoss()
+        val = []
+        for key in w1.keys():
+            val.append(mseloss(w1[key],w2[key]).numpy())
+        return np.mean(np.array(val))
+
     channel = wireless_channel(args)
-    model = {'layer1':torch.Tensor([1,2,-1]).to('cuda')}
+    model = {'layer1':torch.Tensor([1,2,-1]).to('cpu')}
     model_list = [model,model,model]
     print(channel.channel_process(model_list))
+    print('Model mse:',eval_model_mse(model,channel.channel_process(model_list)))
+    
