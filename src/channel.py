@@ -29,12 +29,13 @@ class wireless_channel():
         rayleigh_samples = torch.from_numpy(rayleigh_samples).to(device)
         return rayleigh_samples
 
-    def generate_channel_noise(self,signal_tensor:torch.Tensor,device,snr_db=-30):
+    def generate_channel_noise(self,signal_tensor:torch.Tensor,device,snr_db=0):
         '''
         Return Noise tensor with same shape and device like signal tensor
         '''
         num_samples = signal_tensor.numel()
-        sigma = np.power(10,snr_db/10.0)
+        signal_power = torch.sum(signal_tensor)/num_samples
+        sigma = np.sqrt(signal_power/np.power(10,snr_db/10.0))
         noise = sigma * np.random.randn(num_samples)
         noise = torch.from_numpy(noise).to(device)
         noise = noise.reshape_as(signal_tensor)
@@ -113,7 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_tx', type=int, default=1)
     parser.add_argument('--num_rx', type=int, default=10)
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--snr_db', type=int, default=-30)
+    parser.add_argument('--snr_db', type=int, default=0)
     parser.add_argument('--oac_method', type=str, default='mimo_oac')
     args = parser.parse_args()
 
