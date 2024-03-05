@@ -9,8 +9,6 @@ class wireless_channel():
         self.num_rx = args.num_rx
         self.args = args
         self.device = 'cuda' if args.gpu else 'cpu'
-        self.modulate_symbol = np.exp(1j*2*np.pi*2.4e9)   # 2.4GHz symbol, real part > 0
-        self.demodulate_symbol = np.exp(-1j*2*np.pi*2.4e9)   # 2.4GHz symbol
     
     def generate_channel_gain(self,num_tx,num_rx,device):
         '''
@@ -34,10 +32,10 @@ class wireless_channel():
         Return Noise tensor with same shape and device like signal tensor
         '''
         num_samples = signal_tensor.numel()
-        signal_power = torch.sum(signal_tensor)/num_samples
+        signal_power = torch.sum(signal_tensor**2)/num_samples
         sigma = np.sqrt(signal_power/np.power(10,snr_db/10.0))
         noise = sigma * np.random.randn(num_samples)
-        noise = torch.from_numpy(noise).to(device)
+        # noise = torch.from_numpy(noise).to(device)
         noise = noise.reshape_as(signal_tensor)
         return noise
 
@@ -49,15 +47,15 @@ class wireless_channel():
         '''
         device = 'cuda' if self.args.gpu else 'cpu'
         if self.num_tx == 1:    # Support K x SIMO currently
-            rayleigh_coefficient = self.generate_channel_gain(len(w),self.num_rx,device)       
+            rayleigh_coefficient = self.generate_channel_gain(len(w),self.num_rx,device)       # num_users(K) x num_rx
             w_avg = copy.deepcopy(w[0])
             if self.args.oac_method == 'none':
-                postcode = torch.ones(self.num_rx).to(device)
+                postcode = torch.ones(self.num_rx).to(device)/self.num_rx
             elif self.args.oac_method == 'naive':
-                postcode = torch.ones(self.num_rx).to(device)
+                postcode = torch.ones(self.num_rx).to(device)/self.num_rx
             elif self.args.oac_method == 'mimo_oac':
-                # Put your postcoding here:
-                h_coefficient = rayleigh_coefficient.cpu().numpy().T
+                # Put your postcoding here: (postcode: A)
+                h_coefficient = rayleigh_coefficient.cpu().numpy().T    # num_rx x num_users
                 csi_G = np.zeros((self.num_rx,self.num_rx),dtype=np.complex64)
                 for i in range(len(w)):
                     ui,sigmai,_ = np.linalg.svd(h_coefficient[:,i].reshape(-1,1))
@@ -67,28 +65,42 @@ class wireless_channel():
                 eta = max([np.abs(1/(F_mat.T @ h_coefficient[:,i].reshape(-1,1) @ h_coefficient[:,i].reshape(-1,1).T.conjugate() @ F_mat.conjugate())) for i in range(len(w))])/1
                 postcode_np = np.sqrt(eta)*F_mat
                 postcode = torch.from_numpy(postcode_np).to(device).flatten()
+            elif self.args.oac_method == 'mimo_as':
+                h_coefficient = rayleigh_coefficient.cpu().numpy().T    # num_rx x num_users
+                h_coefficient_norm = np.sum(h_coefficient,axis=1)
+                h_mean = np.mean(h_coefficient_norm)
+                mask = h_coefficient_norm>h_mean
+                h_coefficient_norm[mask] = 1
+                h_coefficient_norm[1-mask] = 0
+                postcode_np = h_coefficient_norm
+                postcode = torch.from_numpy(postcode_np).to(device).flatten()
+            elif self.args.oac_method == 'mimo_eigen':
+                h_coefficient = rayleigh_coefficient.cpu().numpy().T    # num_rx x num_users
+                h_sum = np.sum(h_coefficient,axis=1).reshape(-1,1)
+                uh,sigmah,_ = np.linalg.svd(h_sum)
+                postcode_np = uh[:,0]
+                postcode = torch.from_numpy(postcode_np).to(device).flatten()
             # postcode = torch.ones(self.num_rx).to(device)
 
             for i in range(len(w)):  # Each cients' SIMO channel
-                # Put your precoding here:
+                # Put your precoding here: (precode: B)
                 if self.args.oac_method == 'none':
                     precode = torch.ones(self.num_tx).to(device).flatten()
                 elif self.args.oac_method == 'naive':
                     precode = 1/rayleigh_coefficient[i,0].view(-1)
-                elif self.args.oac_method == 'mimo_oac':
+                elif self.args.oac_method == 'mimo_oac' or self.args.oac_method == 'mimo_as' or self.args.oac_method == 'mimo_eigen':
                     precode = (h_coefficient[:,i].reshape(-1,1).T.conjugate() @ postcode_np.conjugate()) * \
                             1/(postcode_np.T @ h_coefficient[:,i].reshape(-1,1) @ h_coefficient[:,i].reshape(-1,1).T.conjugate() @ postcode_np.conjugate())
                     precode = torch.from_numpy(precode.conjugate()).to(device).flatten()
-                # yij = hij*gij*x + ni, yi = real(Σ pj*yij)
+                # yij = hij*gij*x + ni, yi = Σ pj*yij
                 for key in w_avg.keys():
                     # attenna 0
                     y_complex = rayleigh_coefficient[i,0] * precode[0] * w[i][key] + self.generate_channel_noise(w[i][key],device,self.args.snr_db)
-                    y_post_complex = postcode[0] * y_complex
+                    y_post_complex = postcode[0].conj() * y_complex
                     # attenna 1-X
                     for rx in range(1,self.num_rx):
                         y_complex = rayleigh_coefficient[i,rx] * precode[0] * w[i][key] + self.generate_channel_noise(w[i][key],device,self.args.snr_db)
-                        # 全部用precode[i,0]需要改进
-                        y_post_complex += postcode[rx] * y_complex
+                        y_post_complex += postcode[rx].conj() * y_complex
                     # 存疑，如何处理信号的符号
                     sign_mask = torch.real(y_post_complex)>0
                     sign_mask = sign_mask*1.0
@@ -98,7 +110,7 @@ class wireless_channel():
                         w_avg[key] = torch.abs(y_post_complex)*sign_mask
                     else:
                         w_avg[key] += torch.abs(y_post_complex)*sign_mask
-                    if i==len(w)-1:
+                    if i==(len(w)-1):
                         w_avg[key] = torch.div(w_avg[key], len(w))
 
         return w_avg
@@ -112,10 +124,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     # federated arguments (Notation for the arguments followed from paper)
     parser.add_argument('--num_tx', type=int, default=1)
-    parser.add_argument('--num_rx', type=int, default=10)
+    parser.add_argument('--num_rx', type=int, default=1)
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--snr_db', type=int, default=0)
-    parser.add_argument('--oac_method', type=str, default='mimo_oac')
+    parser.add_argument('--snr_db', type=int, default=10)
+    parser.add_argument('--oac_method', type=str, default='naive')
     args = parser.parse_args()
 
     def eval_model_mse(w1,w2):
@@ -129,8 +141,9 @@ if __name__ == '__main__':
     channel = wireless_channel(args)
     model = {'layer1':torch.Tensor([1,2,-1]).to('cpu')}
     model_list = [model]*20
-    print(channel.channel_process(model_list))
-    print('Model mse:',eval_model_mse(model,channel.channel_process(model_list)))
+    res = channel.channel_process(model_list)
+    print(res)
+    print('Model mse:',eval_model_mse(model,res))
 
 
     # result_list = []
@@ -138,7 +151,7 @@ if __name__ == '__main__':
     #     channel = wireless_channel(args)
     #     model_list = []
     #     for client in range(10):
-    #         model = {'layer1':torch.Tensor([1,2,-1]).to('cpu'),'layer2':torch.empty(20,10).uniform_(-10,10).to('cpu')}
+    #         model = {'layer1':torch.Tensor([1,2,-1]).to('cpu'),'layer2':torch.empty(200,10).uniform_(-10,10).to('cpu')}
     #         model_list.append(model)
     #     model_target = average_weights(model_list)
     #     # print(channel.channel_process(model_list))
