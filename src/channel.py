@@ -101,15 +101,21 @@ class wireless_channel():
                     for rx in range(1,self.num_rx):
                         y_complex = rayleigh_coefficient[i,rx] * precode[0] * w[i][key] + self.generate_channel_noise(w[i][key],device,self.args.snr_db)
                         y_post_complex += postcode[rx].conj() * y_complex
-                    # 存疑，如何处理信号的符号
-                    sign_mask = torch.real(y_post_complex)>0
-                    sign_mask = sign_mask*1.0
-                    sign_mask[sign_mask==1] = 1.0
-                    sign_mask[sign_mask==0] = -1.0
+                    # 存疑，如何处理信号的符号 直接取实部
+                    # sign_mask = torch.real(y_post_complex)>0
+                    # sign_mask = sign_mask*1.0
+                    # sign_mask[sign_mask==1] = 1.0
+                    # sign_mask[sign_mask==0] = -1.0
+                    # if i==0:
+                    #     w_avg[key] = torch.abs(y_post_complex)*sign_mask
+                    # else:
+                    #     w_avg[key] += torch.abs(y_post_complex)*sign_mask
+
                     if i==0:
-                        w_avg[key] = torch.abs(y_post_complex)*sign_mask
+                        w_avg[key] = torch.real(y_post_complex)
                     else:
-                        w_avg[key] += torch.abs(y_post_complex)*sign_mask
+                        w_avg[key] += torch.real(y_post_complex)
+
                     if i==(len(w)-1):
                         w_avg[key] = torch.div(w_avg[key], len(w))
 
@@ -120,14 +126,15 @@ if __name__ == '__main__':
     import torch.nn as nn
     from utils import average_weights
     from tqdm import tqdm
-    
+    # 1. 参数两两放到实部和虚部
+    # OFDM H对每个子载波选择性衰落 BAA Zhu
     parser = argparse.ArgumentParser()
     # federated arguments (Notation for the arguments followed from paper)
     parser.add_argument('--num_tx', type=int, default=1)
-    parser.add_argument('--num_rx', type=int, default=1)
+    parser.add_argument('--num_rx', type=int, default=10)
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--snr_db', type=int, default=10)
-    parser.add_argument('--oac_method', type=str, default='naive')
+    parser.add_argument('--snr_db', type=int, default=50)
+    parser.add_argument('--oac_method', type=str, default='mimo_eigen')
     args = parser.parse_args()
 
     def eval_model_mse(w1,w2):
