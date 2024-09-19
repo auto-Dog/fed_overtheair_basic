@@ -61,7 +61,7 @@ if __name__ == '__main__':
     # Set the model to train and send it to device.
     global_model.to(device)
     global_model.train()
-    print(global_model)
+    # print(global_model)
 
     # copy weights
     global_weights = global_model.state_dict()
@@ -77,7 +77,7 @@ if __name__ == '__main__':
         local_weights, local_losses = [], []
         print(f'\n | Global Training Round : {epoch+1} |\n')
         # Every 5 itertaions, evaluate the learning performance in terms of "test accuracy"
-        if np.mod(iter,5) == 0:
+        if np.mod(epoch,5) == 0:
             global_model.eval()
             acc_test, _ = test_inference(args,global_model, test_dataset)
             acc_store = np.append(acc_store, acc_test)
