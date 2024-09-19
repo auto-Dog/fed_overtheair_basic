@@ -119,6 +119,7 @@ def exp_details(args):
     print(f'    Optimizer : {args.optimizer}')
     print(f'    Learning  : {args.lr}')
     print(f'    Global Rounds   : {args.epochs}\n')
+    print(f'    Use Wireless Channel:{args.channel}')
 
     print('    Federated parameters:')
     if args.iid:

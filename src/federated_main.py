@@ -18,7 +18,7 @@ from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
 from channel import wireless_channel
-
+from shufflenetv2 import ShuffleNetV2   # for experiments
 
 if __name__ == '__main__':
     start_time = time.time()
@@ -46,7 +46,8 @@ if __name__ == '__main__':
         elif args.dataset == 'fmnist':
             global_model = CNNFashion_Mnist(args=args)
         elif args.dataset == 'cifar':
-            global_model = CNNCifar(args=args)
+            # global_model = CNNCifar(args=args)
+            global_model = ShuffleNetV2(1)  # test this net
 
     elif args.model == 'mlp':
         # Multi-layer preceptron
@@ -73,10 +74,17 @@ if __name__ == '__main__':
     cv_loss, cv_acc = [], []
     print_every = 2
     val_loss_pre, counter = 0, 0
+    acc_store = np.array([])
 
     for epoch in tqdm(range(args.epochs),ascii=True):
         local_weights, local_losses = [], []
         # print(f'\n | Global Training Round : {epoch+1} |\n')
+        # Every 5 itertaions, evaluate the learning performance in terms of "test accuracy"
+        if np.mod(epoch,5) == 0:
+            global_model.eval()
+            acc_test, _ = test_inference(args,global_model, test_dataset)
+            acc_store = np.append(acc_store, acc_test)
+            print("### Test accuracies every 5 itertaions on whole dataset:".format(acc_store))
 
         global_model.train()
         m = max(int(args.frac * args.num_users), 1)
