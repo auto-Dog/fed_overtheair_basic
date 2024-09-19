@@ -20,9 +20,7 @@ class DatasetSplit(Dataset):
 
     def __getitem__(self, item):
         image, label = self.dataset[self.idxs[item]]
-        # return torch.tensor(image), torch.tensor(label)
-        return image, label # CIFAR等数据集dataset已经包含了totensor操作
-
+        return torch.tensor(image), torch.tensor(label)
 
 
 class LocalUpdate(object):
@@ -95,20 +93,19 @@ class LocalUpdate(object):
         model.eval()
         loss, total, correct = 0.0, 0.0, 0.0
 
-        with torch.no_grad():
-            for batch_idx, (images, labels) in enumerate(self.testloader):
-                images, labels = images.to(self.device), labels.to(self.device)
+        for batch_idx, (images, labels) in enumerate(self.testloader):
+            images, labels = images.to(self.device), labels.to(self.device)
 
-                # Inference
-                outputs = model(images)
-                batch_loss = self.criterion(outputs, labels)
-                loss += batch_loss.item()
+            # Inference
+            outputs = model(images)
+            batch_loss = self.criterion(outputs, labels)
+            loss += batch_loss.item()
 
-                # Prediction
-                _, pred_labels = torch.max(outputs, 1)
-                pred_labels = pred_labels.view(-1)
-                correct += torch.sum(torch.eq(pred_labels, labels)).item()
-                total += len(labels)
+            # Prediction
+            _, pred_labels = torch.max(outputs, 1)
+            pred_labels = pred_labels.view(-1)
+            correct += torch.sum(torch.eq(pred_labels, labels)).item()
+            total += len(labels)
 
         accuracy = correct/total
         return accuracy, loss
@@ -125,20 +122,20 @@ def test_inference(args, model, test_dataset):
     criterion = nn.NLLLoss().to(device)
     testloader = DataLoader(test_dataset, batch_size=128,
                             shuffle=False)
-    with torch.no_grad():
-        for batch_idx, (images, labels) in enumerate(testloader):
-            images, labels = images.to(device), labels.to(device)
 
-            # Inference
-            outputs = model(images)
-            batch_loss = criterion(outputs, labels)
-            loss += batch_loss.item()
+    for batch_idx, (images, labels) in enumerate(testloader):
+        images, labels = images.to(device), labels.to(device)
 
-            # Prediction
-            _, pred_labels = torch.max(outputs, 1)
-            pred_labels = pred_labels.view(-1)
-            correct += torch.sum(torch.eq(pred_labels, labels)).item()
-            total += len(labels)
+        # Inference
+        outputs = model(images)
+        batch_loss = criterion(outputs, labels)
+        loss += batch_loss.item()
+
+        # Prediction
+        _, pred_labels = torch.max(outputs, 1)
+        pred_labels = pred_labels.view(-1)
+        correct += torch.sum(torch.eq(pred_labels, labels)).item()
+        total += len(labels)
 
     accuracy = correct/total
     return accuracy, loss

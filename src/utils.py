@@ -8,35 +8,6 @@ from torchvision import datasets, transforms
 from sampling import mnist_iid, mnist_noniid, mnist_noniid_unequal
 from sampling import cifar_iid, cifar_noniid
 
-class GradientList:
-    '''
-    存储在内存里的模型参数列表
-    ---
-    example:
-    g_list = GradientList(5)    # g_list可以像正常列表一样使用。列表里的模型都将被存入内存  
-
-    g_list[2] = model.state_dict()  # 赋值，并将显存中的模型参数转移到内存 
-
-    read = g_list[2]    # 读取，将内存中的模型参数转移到显存  
-    '''  
-    def __init__(self,num):
-        self.storage = [None for i in range(num)]
-        self.length = num
-    def __getitem__(self,index):
-        '''Output a dict of tensor to GPU'''
-        if self.storage[index] == None:
-            return None
-        new_dict = {}
-        source_dict = self.storage[index]
-        for key,val in source_dict.items():
-            new_dict[key] = val.cuda()
-        return new_dict
-    def __setitem__(self,index,value):
-        '''Input a dict of tensor from GPU'''
-        new_dict = {}
-        for key,val in value.items():
-            new_dict[key] = val.detach().cpu()
-        self.storage[index] = new_dict
 
 def get_dataset(args):
     """ Returns train and test datasets and a user group which is a dict where
@@ -45,15 +16,15 @@ def get_dataset(args):
     """
 
     if args.dataset == 'cifar':
-        data_dir = '/kaggle/input/cifar10-python'
+        data_dir = '../data/cifar/'
         apply_transform = transforms.Compose(
             [transforms.ToTensor(),
              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-        train_dataset = datasets.CIFAR10(data_dir, train=True, 
+        train_dataset = datasets.CIFAR10(data_dir, train=True, download=True,
                                        transform=apply_transform)
 
-        test_dataset = datasets.CIFAR10(data_dir, train=False, 
+        test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
                                       transform=apply_transform)
 
         # sample training data amongst users
@@ -119,7 +90,6 @@ def exp_details(args):
     print(f'    Optimizer : {args.optimizer}')
     print(f'    Learning  : {args.lr}')
     print(f'    Global Rounds   : {args.epochs}\n')
-    print(f'    Use Wireless Channel:{args.channel}')
 
     print('    Federated parameters:')
     if args.iid:

@@ -58,12 +58,7 @@ def args_parser():
                         non-i.i.d setting (use 0 for equal splits)')
     parser.add_argument('--stopping_rounds', type=int, default=10,
                         help='rounds of early stopping')
-    parser.add_argument('--verbose', type=int, default=0, help='verbose')
+    parser.add_argument('--verbose', type=int, default=1, help='verbose')
     parser.add_argument('--seed', type=int, default=1, help='random seed')
-
-    parser.add_argument('--channel', action='store_true', help='Consider channel environment')
-    parser.add_argument('--num_tx', type=float, default=1, help='Number of tx antennas at each client')
-    parser.add_argument('--num_rx', type=float, default=4, help='Number of rx antennas at center AP')
-    parser.add_argument('--snr_db', type=float, default=-30, help='Channel SNR')
     args = parser.parse_args()
     return args

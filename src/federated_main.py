@@ -17,7 +17,6 @@ from options import args_parser
 from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
-from channel import wireless_channel
 from shufflenetv2 import ShuffleNetV2   # for experiments
 
 if __name__ == '__main__':
@@ -30,10 +29,9 @@ if __name__ == '__main__':
     args = args_parser()
     exp_details(args)
 
-    if args.gpu:
-        torch.cuda.set_device('cuda:'+str(args.gpu))
+    if args.gpu_id:
+        torch.cuda.set_device(args.gpu_id)
     device = 'cuda' if args.gpu else 'cpu'
-    print('Using device:',device)
 
     # load dataset and user groups
     train_dataset, test_dataset, user_groups = get_dataset(args)
@@ -46,8 +44,8 @@ if __name__ == '__main__':
         elif args.dataset == 'fmnist':
             global_model = CNNFashion_Mnist(args=args)
         elif args.dataset == 'cifar':
-            # global_model = CNNCifar(args=args)
-            global_model = ShuffleNetV2(1)  # test this net
+            global_model = CNNCifar(args=args)
+            global_model = ShuffleNetV2(1)
 
     elif args.model == 'mlp':
         # Multi-layer preceptron
@@ -63,7 +61,7 @@ if __name__ == '__main__':
     # Set the model to train and send it to device.
     global_model.to(device)
     global_model.train()
-    # print(global_model)
+    print(global_model)
 
     # copy weights
     global_weights = global_model.state_dict()
@@ -75,20 +73,20 @@ if __name__ == '__main__':
     print_every = 2
     val_loss_pre, counter = 0, 0
     acc_store = np.array([])
-
-    for epoch in tqdm(range(args.epochs),ascii=True):
+    for epoch in tqdm(range(args.epochs)):
         local_weights, local_losses = [], []
-        # print(f'\n | Global Training Round : {epoch+1} |\n')
+        print(f'\n | Global Training Round : {epoch+1} |\n')
         # Every 5 itertaions, evaluate the learning performance in terms of "test accuracy"
-        if np.mod(epoch,5) == 0:
+        if np.mod(iter,5) == 0:
             global_model.eval()
             acc_test, _ = test_inference(args,global_model, test_dataset)
             acc_store = np.append(acc_store, acc_test)
-            print("\n ### Test accuracies every 5 itertaions on whole dataset:",acc_store)
-
+            print("Test accuracies every 5 itertaions =", acc_store)
+            
         global_model.train()
         m = max(int(args.frac * args.num_users), 1)
-        idxs_users = np.random.choice(range(args.num_users), m, replace=False)        
+        idxs_users = np.random.choice(range(args.num_users), m, replace=False)
+
         for idx in idxs_users:
             local_model = LocalUpdate(args=args, dataset=train_dataset,
                                       idxs=user_groups[idx], logger=logger)
@@ -97,21 +95,13 @@ if __name__ == '__main__':
             local_weights.append(copy.deepcopy(w))
             local_losses.append(copy.deepcopy(loss))
 
-        if args.channel == False:
-            # update global weights
-            global_weights = average_weights(local_weights)
+        # update global weights
+        global_weights = average_weights(local_weights)
 
-            # update global weights
-            global_model.load_state_dict(global_weights)
+        # update global weights
+        global_model.load_state_dict(global_weights)
 
-            loss_avg = sum(local_losses) / len(local_losses)
-        else:
-            channel_process = wireless_channel(args)
-            global_weights = channel_process.channel_process(local_weights)
-            # update global weights
-            global_model.load_state_dict(global_weights)
-            loss_avg = sum(local_losses) / len(local_losses)
-
+        loss_avg = sum(local_losses) / len(local_losses)
         train_loss.append(loss_avg)
 
         # Calculate avg training accuracy over all users at every epoch
