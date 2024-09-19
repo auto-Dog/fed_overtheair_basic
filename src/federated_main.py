@@ -84,7 +84,7 @@ if __name__ == '__main__':
             global_model.eval()
             acc_test, _ = test_inference(args,global_model, test_dataset)
             acc_store = np.append(acc_store, acc_test)
-            print("### Test accuracies every 5 itertaions on whole dataset:".format(acc_store))
+            print("\n ### Test accuracies every 5 itertaions on whole dataset:",acc_store)
 
         global_model.train()
         m = max(int(args.frac * args.num_users), 1)
