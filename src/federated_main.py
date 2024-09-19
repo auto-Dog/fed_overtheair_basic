@@ -44,7 +44,7 @@ if __name__ == '__main__':
         elif args.dataset == 'fmnist':
             global_model = CNNFashion_Mnist(args=args)
         elif args.dataset == 'cifar':
-            global_model = CNNCifar(args=args)
+            # global_model = CNNCifar(args=args)
             global_model = ShuffleNetV2(1)
 
     elif args.model == 'mlp':
